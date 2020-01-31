@@ -59,7 +59,7 @@ The data here is derived from @`r unlist(strsplit(getwd(), "/"))[8]` and will be
 # These should be checked per document.
 # -------------------------------------
 
-packages <- c("conflicted")
+packages <- c("conflicted", "DT")
 invisible(suppressPackageStartupMessages(lapply(packages, library, character.only = TRUE)))
 source(file.path(getwd(), "..", "utils.R"))
 
@@ -84,4 +84,37 @@ if (!dir.exists(file.path(assets_dir, "cache", paste0("0", analysis_no)))) {
 
 options(stringsAsFactors = FALSE)
 knitr::opts_chunk$set(fig.width = 10, fig.height = 10)
+```
+
+# DEGs
+
+```{r, DEG}
+data <- read.delim(file.path(assets_dir, "GEO2R.txt"))
+data <- data[which(data$adj.P.Val < 0.05), ]
+```
+
+## AD Upregulated
+
+```{r, AD-up}
+AD_up <- data[which(data$logFC > 0), ]
+AD_up <- AD_up[order(-AD_up$logFC), ]
+rownames(AD_up) <- NULL
+datatable_custom(AD_up)
+```
+
+## AD Downregulated
+
+```{r, AD-down}
+AD_down <- data[which(data$logFC < 0), ]
+AD_down <- AD_down[order(AD_down$logFC), ]
+rownames(AD_down) <- NULL
+datatable_custom(AD_down)
+```
+
+# References
+
+This is the concluding section of the document. Here we output the `sessionInfo` and create a bibliography for works cited.
+
+```{r, references}
+sessionInfo()
 ```
