@@ -1,0 +1,88 @@
+---
+title: '01 Analysis - `r unlist(strsplit(getwd(), "/"))[6]`'
+author:
+  - name: "Emir Turkes [emir.turkes@eturkes.com]"
+  - name: "UK Dementia Research Institute at UCL"
+date: '`r strftime(Sys.time(), format = "%B %d, %Y")`'
+bibliography: '../../`r unlist(strsplit(getwd(), "/"))[6]`.bib'
+link-citations: true
+output:
+  html_document:
+    code_folding: hide
+    number_sections: true
+    theme: lumen
+    highlight: haddock
+    toc: true
+    toc_depth: 2
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(
+    "..", "..", "results", unlist(strsplit(getwd(), "/"))[8], "01-analysis.html"
+  ))})
+---
+
+<style type="text/css">
+body {font-size: 16px;}
+h1.title {font-size: 35px;}
+h1 {font-size: 24px;}
+h2 {font-size: 22px;}
+h3 {font-size: 20px;}
+.toc-content {padding-left: 0px; padding-right: 0px;}
+div.tocify {width: 100%;}
+.tocify-subheader .tocify-item {font-size: 0.95em; padding-left: 25px; text-indent: 0;}
+div.main-container {max-width: none; width: 100%;}
+</style>
+
+*This file is a part of [Quick Omics](https://github.com/eturkes/quick-omics).
+
+The data here is derived from @`r unlist(strsplit(getwd(), "/"))[8]` and will be referenced using the name ``r unlist(strsplit(getwd(), "/"))[8]``.
+
+```{r, boilerplate}
+# Load in necessary boilerplate and libraries.
+# --------------------------------------------
+
+# Copyright 2020 Emir Turkes
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# These should be checked per document.
+# -------------------------------------
+
+packages <- c("conflicted")
+invisible(suppressPackageStartupMessages(lapply(packages, library, character.only = TRUE)))
+source(file.path(getwd(), "..", "utils.R"))
+
+analysis_no <- 1
+
+# Everything else in this chunk remains generally unchanged.
+# ----------------------------------------------------------
+
+data_name <- unlist(strsplit(getwd(), "/"))[8] # Name of dataset.
+assets_dir <- file.path(getwd(), "..", "..", "assets", data_name) # Backed up caches and data.
+tmp_dir <- file.path(getwd(), "..", "..", "tmp", data_name)
+results_dir <- file.path(getwd(), "..", "..", "results", data_name)
+
+if (!dir.exists(tmp_dir)) {
+  dir.create(tmp_dir, recursive = TRUE)
+}
+
+# Unique cache directory for each analysis number.
+if (!dir.exists(file.path(assets_dir, "cache", paste0("0", analysis_no)))) {
+  dir.create(file.path(assets_dir, "cache", paste0("0", analysis_no)), recursive = TRUE)
+}
+
+options(stringsAsFactors = FALSE)
+knitr::opts_chunk$set(fig.width = 10, fig.height = 10)
+```
