@@ -4,7 +4,6 @@ author:
   - name: "Emir Turkes [emir.turkes@eturkes.com]"
   - name: "UK Dementia Research Institute at UCL"
 date: '`r strftime(Sys.time(), format = "%B %d, %Y")`'
-bibliography: '../../`r unlist(strsplit(getwd(), "/"))[6]`.bib'
 link-citations: true
 output:
   html_document:
