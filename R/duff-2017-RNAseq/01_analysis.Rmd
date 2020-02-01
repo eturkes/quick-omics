@@ -89,15 +89,19 @@ knitr::opts_chunk$set(fig.width = 10, fig.height = 10)
 # DEGs
 
 ```{r, DEG}
-data <- read.delim(file.path(assets_dir, "GEO2R.txt"))
-data <- data[which(data$adj.P.Val < 0.05), ]
+data <- read.delim(
+  file.path(
+    assets_dir, "GSE102334_Entorhinal-Cortex-E34-vs-E33-Differential-Expression-Results.txt"
+  )
+)
+data <- data[which(data$padj < 0.05), ]
 ```
 
 ## AD Upregulated
 
 ```{r, AD-up}
-AD_up <- data[which(data$logFC > 0), ]
-AD_up <- AD_up[order(-AD_up$logFC), ]
+AD_up <- data[which(data$log2FoldChange > 0), ]
+AD_up <- AD_up[order(-AD_up$log2FoldChange), ]
 rownames(AD_up) <- NULL
 datatable_custom(AD_up)
 ```
@@ -105,8 +109,8 @@ datatable_custom(AD_up)
 ## AD Downregulated
 
 ```{r, AD-down}
-AD_down <- data[which(data$logFC < 0), ]
-AD_down <- AD_down[order(AD_down$logFC), ]
+AD_down <- data[which(data$log2FoldChange < 0), ]
+AD_down <- AD_down[order(AD_down$log2FoldChange), ]
 rownames(AD_down) <- NULL
 datatable_custom(AD_down)
 ```
