@@ -18,3 +18,6 @@ limitations under the License.
 #### *These files are maintained to varying degrees*
 
 Repo for quick exploratory analyses
+
+In order to reproduce the report, prerequisite data must be downloaded from my [Google Drive](https://drive.google.com/drive/folders/1FFPdDBOI8HOlI6Fp72Or8kWOgeflNc6l?usp=sharing).
+After downloading and unzipping, move the directory to the project root and rename it as `gdrive`.
