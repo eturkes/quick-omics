@@ -1,5 +1,6 @@
 ---
-title: '01 Analysis - `r unlist(strsplit(getwd(), "/"))[6]`'
+title:
+  '01 Analysis - `r unlist(strsplit(getwd(), "/"))[length(unlist(strsplit(getwd(), "/"))) - 2]`'
 author:
   - name: "Emir Turkes [emir.turkes@eturkes.com]"
   - name: "UK Dementia Research Institute at UCL"
@@ -17,9 +18,14 @@ output:
       collapsed: false
       smooth_scroll: false
 knit: (function(inputFile, encoding) {
-  rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(
-    "..", "..", "results", unlist(strsplit(getwd(), "/"))[8], "01-analysis.html"
-  ))})
+  rmarkdown::render(
+    inputFile,
+    encoding = encoding,
+    output_file = file.path(
+      "..", "..", "results",
+      unlist(strsplit(getwd(), "/"))[length(unlist(strsplit(getwd(), "/")))], "01-analysis.html"
+    )
+  )})
 ---
 
 <style type="text/css">
@@ -36,7 +42,7 @@ div.main-container {max-width: none; width: 100%;}
 
 *This file is a part of [Quick Omics](https://github.com/eturkes/quick-omics).*
 
-The data here is derived from @`r unlist(strsplit(getwd(), "/"))[8]` and will be referenced using the name ``r unlist(strsplit(getwd(), "/"))[8]``.
+The data here is derived from @`r unlist(strsplit(getwd(), "/"))[length(unlist(strsplit(getwd(), "/")))]` and will be referenced using the name ``r unlist(strsplit(getwd(), "/"))[length(unlist(strsplit(getwd(), "/")))]``.
 
 ```{r, boilerplate}
 # Load in necessary boilerplate and libraries.
@@ -68,18 +74,20 @@ analysis_no <- 1
 # Everything else in this chunk remains generally unchanged.
 # ----------------------------------------------------------
 
-data_name <- unlist(strsplit(getwd(), "/"))[8] # Name of dataset.
-assets_dir <- file.path(getwd(), "..", "..", "assets", data_name) # Backed up caches and data.
-tmp_dir <- file.path(getwd(), "..", "..", "tmp", data_name)
-results_dir <- file.path(getwd(), "..", "..", "results", data_name)
+data_name <- unlist(strsplit(getwd(), "/"))[length(unlist(strsplit(getwd(), "/")))] # Name of data.
+assets_dir <- normalizePath(file.path(getwd(), "..", "..", "assets", data_name)) # Caches and data.
+tmp_dir <- normalizePath(file.path(getwd(), "..", "..", "tmp", data_name))
+results_dir <- normalizePath(file.path(getwd(), "..", "..", "results", data_name))
 
 if (!dir.exists(tmp_dir)) {
   dir.create(tmp_dir, recursive = TRUE)
 }
 
 # Unique cache directory for each analysis number.
-if (!dir.exists(file.path(assets_dir, "cache", paste0("0", analysis_no)))) {
-  dir.create(file.path(assets_dir, "cache", paste0("0", analysis_no)), recursive = TRUE)
+if (!dir.exists(normalizePath(file.path(assets_dir, "cache", paste0("0", analysis_no))))) {
+  dir.create(
+    normalizePath(file.path(assets_dir, "cache", paste0("0", analysis_no))), recursive = TRUE
+  )
 }
 
 options(stringsAsFactors = FALSE)
