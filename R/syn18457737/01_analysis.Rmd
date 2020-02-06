@@ -1,0 +1,339 @@
+---
+title:
+  '01 Analysis - `r unlist(strsplit(getwd(), "/"))[length(unlist(strsplit(getwd(), "/"))) - 2]`'
+author:
+  - name: "Emir Turkes [emir.turkes@eturkes.com]"
+  - name: "UK Dementia Research Institute at UCL"
+date: '`r strftime(Sys.time(), format = "%B %d, %Y")`'
+bibliography:
+  '../../`r unlist(strsplit(getwd(), "/"))[length(unlist(strsplit(getwd(), "/"))) - 2]`.bib'
+link-citations: true
+output:
+  html_document:
+    code_folding: hide
+    number_sections: true
+    theme: lumen
+    highlight: haddock
+    toc: true
+    toc_depth: 2
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(
+    inputFile,
+    encoding = encoding,
+    output_file = file.path(
+      "..", "..", "results",
+      unlist(strsplit(getwd(), "/"))[length(unlist(strsplit(getwd(), "/")))], "01-analysis.html"
+    )
+  )})
+---
+
+<style type="text/css">
+body {font-size: 16px;}
+h1.title {font-size: 35px;}
+h1 {font-size: 24px;}
+h2 {font-size: 22px;}
+h3 {font-size: 20px;}
+.toc-content {padding-left: 0px; padding-right: 0px;}
+div.tocify {width: 100%;}
+.tocify-subheader .tocify-item {font-size: 0.95em; padding-left: 25px; text-indent: 0;}
+div.main-container {max-width: none; width: 100%;}
+</style>
+
+*This file is a part of [Quick Omics](https://github.com/eturkes/quick-omics).*
+
+The data here is derived from @`r unlist(strsplit(getwd(), "/"))[length(unlist(strsplit(getwd(), "/")))]` and will be referenced using the name ``r unlist(strsplit(getwd(), "/"))[length(unlist(strsplit(getwd(), "/")))]``.
+
+```{r, boilerplate}
+# Load in necessary boilerplate and libraries.
+# --------------------------------------------
+
+# Copyright 2020 Emir Turkes
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# These should be checked per document.
+# -------------------------------------
+
+packages <- c("conflicted", "RColorBrewer", "biomaRt", "limma", "DT")
+invisible(suppressPackageStartupMessages(lapply(packages, library, character.only = TRUE)))
+source(file.path(getwd(), "..", "utils.R"))
+
+analysis_no <- 1
+color <- colorRampPalette(rev(brewer.pal(n = 7, name = "RdBu")))(100)
+color_legend <- c("lightgray", "darkgray")
+
+# Everything else in this chunk remains generally unchanged.
+# ----------------------------------------------------------
+
+data_name <- unlist(strsplit(getwd(), "/"))[length(unlist(strsplit(getwd(), "/")))] # Name of data.
+assets_dir <- normalizePath(file.path(getwd(), "..", "..", "assets", data_name)) # Caches and data.
+tmp_dir <- normalizePath(file.path(getwd(), "..", "..", "tmp", data_name))
+results_dir <- normalizePath(file.path(getwd(), "..", "..", "results", data_name))
+
+if (!dir.exists(tmp_dir)) {
+  dir.create(tmp_dir, recursive = TRUE)
+}
+
+# Unique cache directory for each analysis number.
+if (!dir.exists(normalizePath(file.path(assets_dir, "cache", paste0("0", analysis_no))))) {
+  dir.create(
+    normalizePath(file.path(assets_dir, "cache", paste0("0", analysis_no))), recursive = TRUE
+  )
+}
+
+options(stringsAsFactors = FALSE)
+knitr::opts_chunk$set(fig.width = 10, fig.height = 10)
+```
+
+We prepare the data to analyze differentially expressed genes (DEGs) using `limma`.
+Note that since we are using log2RPKM data, we don't due a traditional analysis but instead fit a simple linear model.
+For the future, it will be better to use less processed data such as BAM files.
+We also use `biomaRt` to gather gene symbols from ENSEMBL IDs to display results in human-readable form.
+Note that we only analyze the 12 month old mice in this analysis.
+
+```{r, DEGs}
+data <- read.csv(file.path(assets_dir, "APOE_filtered_gene_cqn_log2rpkm.csv"))
+
+# Move gene IDs to outside of the matrix.
+rownames(data) <- data$GeneID
+data <- data[ , -1]
+
+# Replace column names in the dataset with ones with phenotypic information.
+meta <- read.csv(file.path(assets_dir, "APOE-TR_biospecimen_metadata.csv"))
+colnames(data) <- gsub("\\.", "-", colnames(data)) # Fix naming mismatch with metadata.
+meta <- meta[match(colnames(data), meta$specimenID), ]
+colnames(data) <- meta$individualID
+
+# Look at only 12 months aged mice.
+data <- data[ , grep("12M", colnames(data))]
+
+# Create subsets for each phenotype.
+# Inconsistent naming in metadata, so be careful with `grep` pattern.
+apoe2 <- data[ , grep("ApoE2", colnames(data))]
+apoe3 <- data[ , grep("ApoE3", colnames(data))]
+apoe4 <- data[ , grep("ApoE4", colnames(data))]
+apoe4 <- apoe4[-6] # APOE4-10 appears to be an outlier so we remove it.
+
+# Retrieve gene symbols.
+# We set to the host to the US mirror as it is more reliable.
+mart <- useEnsembl(
+  biomart = "ensembl", dataset = "mmusculus_gene_ensembl", host = "http://useast.ensembl.org/"
+)
+attributes <- c("external_gene_name", "ensembl_gene_id")
+gene_anno <- getBM(
+  attributes = attributes, filters = "ensembl_gene_id", values = rownames(data), mart = mart
+)
+```
+
+# APOE2 vs. APOE3
+
+```{r, apoe2-vs-apoe3}
+# This needs to be edited per comparison.
+conditions <- c("APOE2", "APOE3")
+comb_mat <- cbind(apoe2, apoe3)
+groups <- factor(rep(c(0, 1), c(dim(apoe2)[2], dim(apoe3)[2])))
+
+# Set up for `limma` and `heatmap`.
+levels(groups) <- conditions
+design <- model.matrix(~ groups)
+colnames(design) <- conditions
+names(color_legend) <- conditions
+sample_color_map <- color_legend[groups]
+
+# Fit the linear model and return the top 25 DEGs.
+fit <- lmFit(comb_mat, design)
+fit <- eBayes(fit)
+DE_genes <- topTable(fit, coef = conditions[2], number = 25, adjust.method = "holm", p.value = 0.05)
+
+# Filter DEGs from the dataset containing our phenotypes of interest.
+# We also replace ENSEMBL IDs with gene symbols.
+DE_genes <- comb_mat[rownames(DE_genes), ]
+DE_genes <- DE_genes[rownames(DE_genes) %in% gene_anno$ensembl_gene_id, ]
+keep <- match(rownames(DE_genes), gene_anno$ensembl_gene_id)
+rownames(DE_genes) <- gene_anno[keep, ]$external_gene_name
+
+# Make the heatmap.
+names(sample_color_map) <- colnames(DE_genes)
+gene_set_clustering <- hclust(
+  as.dist(1 - cor(t(DE_genes), method = "pearson")), method = "complete"
+)
+heatmap(
+  as.matrix(DE_genes), ColSideColors = sample_color_map,
+  xlab = paste0(conditions[2], " vs. ", conditions[1]), margins = c(2, 20),
+  col = color, labRow = rownames(DE_genes),
+  labCol = " ", Rowv = as.dendrogram(gene_set_clustering),
+  Colv = NA
+)
+legend("topleft", names(color_legend), fill = color_legend, inset = 0.01, bg = "white")
+
+# Get all DE genes for following subsections.
+DE_genes <- topTable(
+  fit, coef = conditions[2], number = Inf, adjust.method = "holm", p.value = 0.05
+)
+DE_genes <- DE_genes[rownames(DE_genes) %in% gene_anno$ensembl_gene_id, ]
+keep <- match(rownames(DE_genes), gene_anno$ensembl_gene_id)
+rownames(DE_genes) <- gene_anno[keep, ]$external_gene_name
+```
+
+## APOE3 Upregulated
+
+```{r, apoe2-vs-apoe3-up}
+up <- DE_genes[which(DE_genes$logFC > 0), ]
+datatable_custom(up)
+```
+
+## APOE3 Downregulated
+
+```{r, apoe2-vs-apoe3-down}
+up <- DE_genes[which(DE_genes$logFC < 0), ]
+datatable_custom(up)
+```
+
+# APOE2 vs. APOE4
+
+```{r, apoe2-vs-apoe4}
+# This needs to be edited per comparison.
+conditions <- c("APOE2", "APOE4")
+comb_mat <- cbind(apoe2, apoe4)
+groups <- factor(rep(c(0, 1), c(dim(apoe2)[2], dim(apoe4)[2])))
+
+# Set up for `limma` and `heatmap`.
+levels(groups) <- conditions
+design <- model.matrix(~ groups)
+colnames(design) <- conditions
+names(color_legend) <- conditions
+sample_color_map <- color_legend[groups]
+
+# Fit the linear model and return the top 25 DEGs.
+fit <- lmFit(comb_mat, design)
+fit <- eBayes(fit)
+DE_genes <- topTable(fit, coef = conditions[2], number = 25, adjust.method = "holm", p.value = 0.05)
+
+# Filter DEGs from the dataset containing our phenotypes of interest.
+# We also replace ENSEMBL IDs with gene symbols.
+DE_genes <- comb_mat[rownames(DE_genes), ]
+DE_genes <- DE_genes[rownames(DE_genes) %in% gene_anno$ensembl_gene_id, ]
+keep <- match(rownames(DE_genes), gene_anno$ensembl_gene_id)
+rownames(DE_genes) <- gene_anno[keep, ]$external_gene_name
+
+# Make the heatmap.
+names(sample_color_map) <- colnames(DE_genes)
+gene_set_clustering <- hclust(
+  as.dist(1 - cor(t(DE_genes), method = "pearson")), method = "complete"
+)
+heatmap(
+  as.matrix(DE_genes), ColSideColors = sample_color_map,
+  xlab = paste0(conditions[2], " vs. ", conditions[1]), margins = c(2, 20),
+  col = color, labRow = rownames(DE_genes),
+  labCol = " ", Rowv = as.dendrogram(gene_set_clustering),
+  Colv = NA
+)
+legend("topleft", names(color_legend), fill = color_legend, inset = 0.01, bg = "white")
+
+# Get all DE genes for following subsections.
+DE_genes <- topTable(
+  fit, coef = conditions[2], number = Inf, adjust.method = "holm", p.value = 0.05
+)
+DE_genes <- DE_genes[rownames(DE_genes) %in% gene_anno$ensembl_gene_id, ]
+keep <- match(rownames(DE_genes), gene_anno$ensembl_gene_id)
+rownames(DE_genes) <- gene_anno[keep, ]$external_gene_name
+```
+
+## APOE4 Upregulated
+
+```{r, apoe2-vs-apoe4-up}
+up <- DE_genes[which(DE_genes$logFC > 0), ]
+datatable_custom(up)
+```
+
+## APOE4 Downregulated
+
+```{r, apoe2-vs-apoe4-down}
+up <- DE_genes[which(DE_genes$logFC < 0), ]
+datatable_custom(up)
+```
+
+# APOE3 vs. APOE4
+
+```{r, apoe3-vs-apoe4}
+# This needs to be edited per comparison.
+conditions <- c("APOE3", "APOE4")
+comb_mat <- cbind(apoe3, apoe4)
+groups <- factor(rep(c(0, 1), c(dim(apoe3)[2], dim(apoe4)[2])))
+
+# Set up for `limma` and `heatmap`.
+levels(groups) <- conditions
+design <- model.matrix(~ groups)
+colnames(design) <- conditions
+names(color_legend) <- conditions
+sample_color_map <- color_legend[groups]
+
+# Fit the linear model and return the top 25 DEGs.
+fit <- lmFit(comb_mat, design)
+fit <- eBayes(fit)
+DE_genes <- topTable(fit, coef = conditions[2], number = 25, adjust.method = "holm", p.value = 0.05)
+
+# Filter DEGs from the dataset containing our phenotypes of interest.
+# We also replace ENSEMBL IDs with gene symbols.
+DE_genes <- comb_mat[rownames(DE_genes), ]
+DE_genes <- DE_genes[rownames(DE_genes) %in% gene_anno$ensembl_gene_id, ]
+keep <- match(rownames(DE_genes), gene_anno$ensembl_gene_id)
+rownames(DE_genes) <- gene_anno[keep, ]$external_gene_name
+
+# Make the heatmap.
+names(sample_color_map) <- colnames(DE_genes)
+gene_set_clustering <- hclust(
+  as.dist(1 - cor(t(DE_genes), method = "pearson")), method = "complete"
+)
+heatmap(
+  as.matrix(DE_genes), ColSideColors = sample_color_map,
+  xlab = paste0(conditions[2], " vs. ", conditions[1]), margins = c(2, 20),
+  col = color, labRow = rownames(DE_genes),
+  labCol = " ", Rowv = as.dendrogram(gene_set_clustering),
+  Colv = NA
+)
+legend("topleft", names(color_legend), fill = color_legend, inset = 0.01, bg = "white")
+
+# Get all DE genes for following subsections.
+DE_genes <- topTable(
+  fit, coef = conditions[2], number = Inf, adjust.method = "holm", p.value = 0.05
+)
+DE_genes <- DE_genes[rownames(DE_genes) %in% gene_anno$ensembl_gene_id, ]
+keep <- match(rownames(DE_genes), gene_anno$ensembl_gene_id)
+rownames(DE_genes) <- gene_anno[keep, ]$external_gene_name
+```
+
+## APOE4 Upregulated
+
+```{r, apoe3-vs-apoe4-up}
+up <- DE_genes[which(DE_genes$logFC > 0), ]
+datatable_custom(up)
+```
+
+## APOE4 Downregulated
+
+```{r, apoe3-vs-apoe4-down}
+up <- DE_genes[which(DE_genes$logFC < 0), ]
+datatable_custom(up)
+```
+
+# References
+
+This is the concluding section of the document. Here we output the `sessionInfo` and create a bibliography for works cited.
+
+```{r, references}
+sessionInfo()
+```
