@@ -125,7 +125,6 @@ data <- data[ , grep("12M", colnames(data))]
 apoe2 <- data[ , grep("ApoE2", colnames(data))]
 apoe3 <- data[ , grep("ApoE3", colnames(data))]
 apoe4 <- data[ , grep("ApoE4", colnames(data))]
-apoe4 <- apoe4[-6] # APOE4-10 appears to be an outlier so we remove it.
 
 # Retrieve gene symbols.
 # We set to the host to the US mirror as it is more reliable.
