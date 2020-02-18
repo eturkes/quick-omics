@@ -171,8 +171,8 @@ abline(v = intensity_threshold, col = "coral4", lwd = 2)
 meets_cutoff <- apply(
   exprs(data), 1, function(x) { sum(x > intensity_threshold) >= sample_threshold }
 )
-data <- subset(data, meets_cutoff)
 table(meets_cutoff)
+data <- subset(data, meets_cutoff)
 
 anno <- AnnotationDbi::select(
   hgu133plus2.db, keys = (featureNames(data)),
@@ -184,11 +184,11 @@ anno_stats <- summarize(anno_stats, no_of_matches = n_distinct(SYMBOL))
 anno_stats <- filter(anno_stats, no_of_matches > 1)
 
 discard <- (featureNames(data) %in% anno_stats$PROBEID)
+table(discard)
 data <- subset(data, !discard)
 fData(data)$PROBEID <- rownames(fData(data))
 fData(data) <- left_join(fData(data), anno)
 rownames(fData(data)) <- fData(data)$PROBEID
-table(discard)
 
 normal <- data[ , grep("histopathologically", pData(data)$Characteristics..clinical.information.)]
 NFT <- data[ , grep("neurofibrillary", pData(data)$Characteristics..clinical.information.)]
