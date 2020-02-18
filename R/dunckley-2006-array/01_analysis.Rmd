@@ -257,6 +257,20 @@ ggplot(gg_df, aes(PC1, PC2)) +
   theme(plot.title = element_text(hjust = 0.5))
 ```
 
+## NFT Upregulated
+
+```{r, NFT-up}
+up <- DE_genes[which(DE_fit$logFC > 0), ]
+datatable_custom(up)
+```
+
+## NFT Downregulated
+
+```{r, NFT-down}
+up <- DE_genes[which(DE_fit$logFC < 0), ]
+datatable_custom(up)
+```
+
 # References
 
 This is the concluding section of the document. Here we output the `sessionInfo` and create a bibliography for works cited.
