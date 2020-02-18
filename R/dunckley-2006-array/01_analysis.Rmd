@@ -65,9 +65,13 @@ The data here is derived from @`r unlist(strsplit(getwd(), "/"))[length(unlist(s
 # These should be checked per document.
 # -------------------------------------
 
-packages <- c("conflicted", "maEndToEnd", "hgu133plus2.db")
+packages <- c("conflicted", "maEndToEnd", "hgu133plus2.db", "DT")
 invisible(suppressPackageStartupMessages(lapply(packages, library, character.only = TRUE)))
 source(normalizePath(file.path(getwd(), "..", "utils.R")))
+conflict_prefer("strsplit", "Biostrings")
+conflict_prefer("rowMedians", "Biobase")
+conflict_prefer("summarize", "dplyr")
+conflict_prefer("filter", "dplyr")
 
 analysis_no <- 1
 color <- colorRampPalette(rev(brewer.pal(n = 7, name = "RdBu")))(100)
@@ -123,8 +127,8 @@ percentVar <- round(100 * PCA$sdev ^ 2 / sum(PCA$sdev ^ 2), 1)
 gg_df <- data.frame(
   PC1 = PCA$x[ , 1],
   PC2 = PCA$x[ , 2],
-  Disease = pData(data)$Characteristics..clinical.information.,
-  Individual = pData(data)$Characteristics.individual.
+  Disease = data$Characteristics..clinical.information.,
+  Individual = data$Characteristics.individual.
 )
 gg_df$Individual <- factor(gg_df$Individual)
 ggplot(gg_df, aes(PC1, PC2)) +
@@ -138,14 +142,14 @@ ggplot(gg_df, aes(PC1, PC2)) +
 boxplot(data, main = "Boxplot of log2-intensities for Normalized Data")
 
 disease_names <- ifelse(
-  str_detect(pData(data)$Characteristics..clinical.information., "histopathologically"),
+  str_detect(data$Characteristics..clinical.information., "histopathologically"),
   "Normal",
   "NFT"
 )
 heatmap_anno <- data.frame(Disease = disease_names)
-row.names(heatmap_anno) <- row.names(pData(data))
+rownames(heatmap_anno) <- rownames(pData(data))
 dists <- as.matrix(dist(t(exprs(data)), method = "manhattan"))
-rownames(dists) <- row.names(pData(data))
+rownames(dists) <- rownames(pData(data))
 col <- rev(colorRampPalette(brewer.pal(9, "YlOrRd"))(255))
 colnames(dists) <- NULL
 diag(dists) <- NA
@@ -159,7 +163,7 @@ pheatmap(
 )
 
 intensity_threshold <- 4
-sample_threshold <- min(table(pData(data)$Characteristics..clinical.information.))
+sample_threshold <- min(table(data$Characteristics..clinical.information.))
 
 hist_res <- hist(
   rowMedians(exprs(data)), 100, col = "cornsilk",
@@ -190,8 +194,10 @@ fData(data)$PROBEID <- rownames(fData(data))
 fData(data) <- left_join(fData(data), anno)
 rownames(fData(data)) <- fData(data)$PROBEID
 
-normal <- data[ , grep("histopathologically", pData(data)$Characteristics..clinical.information.)]
-NFT <- data[ , grep("neurofibrillary", pData(data)$Characteristics..clinical.information.)]
+exprs(data) <- removeBatchEffect(exprs(data), data$Characteristics.individual.)
+
+normal <- data[ , grep("histopathologically", data$Characteristics..clinical.information.)]
+NFT <- data[ , grep("neurofibrillary", data$Characteristics..clinical.information.)]
 ```
 
 # DEGs
@@ -207,7 +213,6 @@ comb_mat <- comb_mat[!is.na(rownames(comb_mat)), ]
 comb_mat <- comb_mat[!duplicated(rownames(comb_mat)), ]
 groups <- factor(rep(c(0, 1), c(dim(normal)[2], dim(NFT)[2])))
 batch <- c(rep(data$Characteristics.individual.[!duplicated(data$Characteristics.individual.)], 2))
-comb_mat <- removeBatchEffect(comb_mat, batch)
 
 # Set up for `limma` and `heatmap`.
 levels(groups) <- conditions
