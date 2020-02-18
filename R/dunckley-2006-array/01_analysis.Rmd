@@ -65,11 +65,13 @@ The data here is derived from @`r unlist(strsplit(getwd(), "/"))[length(unlist(s
 # These should be checked per document.
 # -------------------------------------
 
-packages <- c("conflicted", "DT")
+packages <- c("conflicted", "maEndToEnd", "hgu133plus2.db")
 invisible(suppressPackageStartupMessages(lapply(packages, library, character.only = TRUE)))
-source(file.path(getwd(), "..", "utils.R"))
+source(normalizePath(file.path(getwd(), "..", "utils.R")))
 
 analysis_no <- 1
+color <- colorRampPalette(rev(brewer.pal(n = 7, name = "RdBu")))(100)
+color_legend <- c("lightgray", "darkgray")
 
 # Everything else in this chunk remains generally unchanged.
 # ----------------------------------------------------------
@@ -94,32 +96,160 @@ options(stringsAsFactors = FALSE)
 knitr::opts_chunk$set(fig.width = 10, fig.height = 10)
 ```
 
+# Prep
+
+First, we run a standard pipeline on the raw data for QC and normalization.
+
+```{r, prep}
+sdrf <- read.delim(normalizePath(file.path(tmp_dir, "E-GEOD-4757.sdrf.txt")))
+rownames(sdrf) <- sdrf$Array.Data.File
+sdrf <- AnnotatedDataFrame(sdrf)
+
+data <- read.celfiles(
+  filenames = normalizePath(file.path(tmp_dir, sdrf$Array.Data.File)), phenoData = sdrf,
+  verbose = FALSE
+)
+pData(data) <- pData(data)[, c(
+  "Source.Name", "Characteristics.individual.", "Characteristics..clinical.information."
+)]
+
+boxplot(data, main = "Boxplot of log2-intensities for Raw Data")
+
+data <- rma(data)
+
+PCA <- prcomp(t(exprs(data)), scale = FALSE)
+percentVar <- round(100 * PCA$sdev ^ 2 / sum(PCA$sdev ^ 2), 1)
+
+gg_df <- data.frame(
+  PC1 = PCA$x[ , 1],
+  PC2 = PCA$x[ , 2],
+  Disease = pData(data)$Characteristics..clinical.information.,
+  Individual = pData(data)$Characteristics.individual.
+)
+gg_df$Individual <- factor(gg_df$Individual)
+ggplot(gg_df, aes(PC1, PC2)) +
+  geom_point(aes(shape = Individual, colour = Disease)) +
+  ggtitle("PCA") +
+  xlab(paste0("PC1, VarExp: ", percentVar[1], "%")) +
+  ylab(paste0("PC2, VarExp: ", percentVar[2], "%")) +
+  scale_shape_manual(values = 1:nlevels(gg_df$Individual)) +
+  theme(plot.title = element_text(hjust = 0.5))
+
+boxplot(data, main = "Boxplot of log2-intensities for Normalized Data")
+
+disease_names <- ifelse(
+  str_detect(pData(data)$Characteristics..clinical.information., "histopathologically"),
+  "Normal",
+  "NFT"
+)
+heatmap_anno <- data.frame(Disease = disease_names)
+row.names(heatmap_anno) <- row.names(pData(data))
+dists <- as.matrix(dist(t(exprs(data)), method = "manhattan"))
+rownames(dists) <- row.names(pData(data))
+col <- rev(colorRampPalette(brewer.pal(9, "YlOrRd"))(255))
+colnames(dists) <- NULL
+diag(dists) <- NA
+ann_colors <- list(Disease = c(Normal = "blue4", NFT = "cadetblue2"))
+pheatmap(
+  dists, col = col,
+  annotation_row = heatmap_anno, annotation_colors = ann_colors,
+  legend = TRUE, treeheight_row = 0,
+  legend_breaks = c(min(dists, na.rm = TRUE), max(dists, na.rm = TRUE)),
+  legend_labels = (c("small distance", "large distance")), main = "Heatmap for Normalized Data"
+)
+
+intensity_threshold <- 4
+sample_threshold <- min(table(pData(data)$Characteristics..clinical.information.))
+
+hist_res <- hist(
+  rowMedians(exprs(data)), 100, col = "cornsilk",
+  freq = FALSE, main = "Histogram of Median Intensities", border = "antiquewhite4",
+  xlab = "Median intensities"
+)
+abline(v = intensity_threshold, col = "coral4", lwd = 2)
+
+meets_cutoff <- apply(
+  exprs(data), 1, function(x) { sum(x > intensity_threshold) >= sample_threshold }
+)
+data <- subset(data, meets_cutoff)
+table(meets_cutoff)
+
+anno <- AnnotationDbi::select(
+  hgu133plus2.db, keys = (featureNames(data)),
+  columns = c("SYMBOL", "GENENAME"), keytype = "PROBEID"
+)
+anno <- subset(anno, !is.na(SYMBOL))
+anno_stats <- group_by(anno, PROBEID)
+anno_stats <- summarize(anno_stats, no_of_matches = n_distinct(SYMBOL))
+anno_stats <- filter(anno_stats, no_of_matches > 1)
+
+discard <- (featureNames(data) %in% anno_stats$PROBEID)
+data <- subset(data, !discard)
+fData(data)$PROBEID <- rownames(fData(data))
+fData(data) <- left_join(fData(data), anno)
+rownames(fData(data)) <- fData(data)$PROBEID
+table(discard)
+
+normal <- data[ , grep("histopathologically", pData(data)$Characteristics..clinical.information.)]
+NFT <- data[ , grep("neurofibrillary", pData(data)$Characteristics..clinical.information.)]
+```
+
 # DEGs
 
-Note that for now we don't use the adjusted p-value for thresholding as they are all greater than $0.05$.
-This may be do to an error in the analysis so that will be double-checked.
+We calculate DEGs (differentially expressed genes).
 
 ```{r, DEG}
-data <- read.delim(file.path(assets_dir, "GEO2R.txt"))
-data <- data[which(data$P.Value < 0.05), ] #TODO: Double-check multiple testing correction.
-```
+# This needs to be edited per comparison.
+conditions <- c("Normal", "NFT")
+comb_mat <- cbind(exprs(normal), exprs(NFT))
+rownames(comb_mat) <- featureData(data)$SYMBOL
+comb_mat <- comb_mat[!is.na(rownames(comb_mat)), ]
+comb_mat <- comb_mat[!duplicated(rownames(comb_mat)), ]
+groups <- factor(rep(c(0, 1), c(dim(normal)[2], dim(NFT)[2])))
+batch <- c(rep(data$Characteristics.individual.[!duplicated(data$Characteristics.individual.)], 2))
+comb_mat <- removeBatchEffect(comb_mat, batch)
 
-## Tangles Upregulated
+# Set up for `limma` and `heatmap`.
+levels(groups) <- conditions
+design <- model.matrix(~ groups)
+colnames(design) <- conditions
+names(color_legend) <- conditions
+sample_color_map <- color_legend[groups]
 
-```{r, AD-up}
-AD_up <- data[which(data$logFC > 0), ]
-AD_up <- AD_up[order(-AD_up$logFC), ]
-rownames(AD_up) <- NULL
-datatable_custom(AD_up)
-```
+# Fit the linear model and return the top 25 DEGs.
+fit <- lmFit(comb_mat, design)
+fit <- eBayes(fit)
+DE_fit <- topTable(fit, coef = conditions[2], number = Inf, adjust.method = "holm", p.value = 0.05)
 
-## Tangles Downregulated
+# Filter DEGs from the dataset containing our phenotypes of interest.
+DE_genes <- comb_mat[rownames(DE_fit), ]
 
-```{r, AD-down}
-AD_down <- data[which(data$logFC < 0), ]
-AD_down <- AD_down[order(AD_down$logFC), ]
-rownames(AD_down) <- NULL
-datatable_custom(AD_down)
+# Make the heatmap.
+names(sample_color_map) <- colnames(DE_genes)
+gene_set_clustering <- hclust(
+  as.dist(1 - cor(t(DE_genes), method = "pearson")), method = "complete"
+)
+heatmap(
+  as.matrix(DE_genes), ColSideColors = sample_color_map,
+  xlab = paste0(conditions[2], " vs. ", conditions[1]), margins = c(2, 20),
+  col = color, labRow = rownames(DE_genes),
+  labCol = " ", Rowv = as.dendrogram(gene_set_clustering),
+  Colv = NA
+)
+legend("topleft", names(color_legend), fill = color_legend, inset = 0.01, bg = "white")
+
+PCA <- prcomp(t(comb_mat), scale = FALSE)
+percentVar <- round(100 * PCA$sdev ^ 2 / sum(PCA$sdev ^ 2), 1)
+
+gg_df <- data.frame(PC1 = PCA$x[ , 1], PC2 = PCA$x[ , 2], Disease = groups, Individual = batch)
+gg_df$Individual <- factor(gg_df$Individual)
+ggplot(gg_df, aes(PC1, PC2)) +
+  geom_point(aes(shape = Individual, colour = Disease)) +
+  ggtitle("PCA") +
+  xlab(paste0("PC1, VarExp: ", percentVar[1], "%")) +
+  ylab(paste0("PC2, VarExp: ", percentVar[2], "%")) +
+  scale_shape_manual(values = 1:nlevels(gg_df$Individual)) +
+  theme(plot.title = element_text(hjust = 0.5))
 ```
 
 # References
