@@ -65,7 +65,7 @@ The data here is derived from @`r unlist(strsplit(getwd(), "/"))[length(unlist(s
 # These should be checked per document.
 # -------------------------------------
 
-packages <- c("conflicted", "maEndToEnd", "hgu133plus2.db", "DT")
+packages <- c("conflicted", "maEndToEnd", "biomaRt", "DT")
 invisible(suppressPackageStartupMessages(lapply(packages, library, character.only = TRUE)))
 source(normalizePath(file.path(getwd(), "..", "utils.R")))
 conflict_prefer("strsplit", "Biostrings")
@@ -162,39 +162,53 @@ pheatmap(
   legend_labels = (c("small distance", "large distance")), main = "Heatmap for Normalized Data"
 )
 
-intensity_threshold <- 4
-sample_threshold <- min(table(data$Characteristics..clinical.information.))
+hist_res <- hist(
+  rowMedians(exprs(data)), 100, col = "cornsilk",
+  freq = FALSE, main = "Histogram of Median Intensities", border = "antiquewhite4",
+  xlab = "Median intensities"
+)
+
+print("Remove features not expressed in any cell.")
+data <- data[rowSums(exprs(data) > 0) > 0, ]
+dim(data)
 
 hist_res <- hist(
   rowMedians(exprs(data)), 100, col = "cornsilk",
   freq = FALSE, main = "Histogram of Median Intensities", border = "antiquewhite4",
   xlab = "Median intensities"
 )
-abline(v = intensity_threshold, col = "coral4", lwd = 2)
-
-meets_cutoff <- apply(
-  exprs(data), 1, function(x) { sum(x > intensity_threshold) >= sample_threshold }
-)
-table(meets_cutoff)
-data <- subset(data, meets_cutoff)
-
-anno <- AnnotationDbi::select(
-  hgu133plus2.db, keys = (featureNames(data)),
-  columns = c("SYMBOL", "GENENAME"), keytype = "PROBEID"
-)
-anno <- subset(anno, !is.na(SYMBOL))
-anno_stats <- group_by(anno, PROBEID)
-anno_stats <- summarize(anno_stats, no_of_matches = n_distinct(SYMBOL))
-anno_stats <- filter(anno_stats, no_of_matches > 1)
-
-discard <- (featureNames(data) %in% anno_stats$PROBEID)
-table(discard)
-data <- subset(data, !discard)
-fData(data)$PROBEID <- rownames(fData(data))
-fData(data) <- left_join(fData(data), anno)
-rownames(fData(data)) <- fData(data)$PROBEID
 
 exprs(data) <- removeBatchEffect(exprs(data), data$Characteristics.individual.)
+
+annotation(data) <- "hgu133plus2"
+data <- nsFilter(data, require.GOBP = TRUE)
+data <- data$eset
+```
+
+```{r}
+rds <- file.path(assets_dir, "cache", paste0("0", analysis_no), "gene_anno.rds")
+if (file.exists(rds)) {
+  gene_anno <- readRDS(rds)
+} else {
+  mart <- useEnsembl(
+    biomart = "ensembl", dataset = "hsapiens_gene_ensembl", host = "http://useast.ensembl.org/"
+  )
+  attributes <- c("affy_hg_u133_plus_2", "external_gene_name", "chromosome_name")
+  gene_anno <- getBM(
+    attributes = attributes, filters = "affy_hg_u133_plus_2",
+    values = featureNames(data), mart = mart
+  )
+  saveRDS(gene_anno, rds)
+}
+
+chromosomes <- c(1:22, "MT")
+gene_anno <- gene_anno[which(gene_anno$chromosome_name %in% chromosomes), ]
+gene_anno <- gene_anno[!duplicated(gene_anno$affy_hg_u133_plus_2), ]
+gene_anno <- gene_anno[!duplicated(gene_anno$external_gene_name), ]
+
+data <- data[which(rownames(data) %in% gene_anno$affy_hg_u133_plus_2), ]
+fData(data) <- gene_anno
+rownames(data) <- fData(data)$external_gene_name
 
 normal <- data[ , grep("histopathologically", data$Characteristics..clinical.information.)]
 NFT <- data[ , grep("neurofibrillary", data$Characteristics..clinical.information.)]
@@ -208,7 +222,7 @@ We calculate DEGs (differentially expressed genes).
 # This needs to be edited per comparison.
 conditions <- c("Normal", "NFT")
 comb_mat <- cbind(exprs(normal), exprs(NFT))
-rownames(comb_mat) <- featureData(data)$SYMBOL
+rownames(comb_mat) <- fData(data)$external_gene_name
 comb_mat <- comb_mat[!is.na(rownames(comb_mat)), ]
 comb_mat <- comb_mat[!duplicated(rownames(comb_mat)), ]
 groups <- factor(rep(c(0, 1), c(dim(normal)[2], dim(NFT)[2])))
