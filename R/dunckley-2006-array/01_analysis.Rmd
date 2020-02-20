@@ -65,7 +65,7 @@ The data here is derived from @`r unlist(strsplit(getwd(), "/"))[length(unlist(s
 # These should be checked per document.
 # -------------------------------------
 
-packages <- c("conflicted", "maEndToEnd", "biomaRt", "DT")
+packages <- c("conflicted", "maEndToEnd", "biomaRt", "DT", "GSEABase", "GSVA")
 invisible(suppressPackageStartupMessages(lapply(packages, library, character.only = TRUE)))
 source(normalizePath(file.path(getwd(), "..", "utils.R")))
 conflict_prefer("strsplit", "Biostrings")
@@ -168,31 +168,17 @@ hist_res <- hist(
   xlab = "Median intensities"
 )
 
-print("Remove features not expressed in any cell.")
-data <- data[rowSums(exprs(data) > 0) > 0, ]
-dim(data)
-
-hist_res <- hist(
-  rowMedians(exprs(data)), 100, col = "cornsilk",
-  freq = FALSE, main = "Histogram of Median Intensities", border = "antiquewhite4",
-  xlab = "Median intensities"
-)
-
 exprs(data) <- removeBatchEffect(exprs(data), data$Characteristics.individual.)
 
 annotation(data) <- "hgu133plus2"
 data <- nsFilter(data, require.GOBP = TRUE)
 data <- data$eset
-```
 
-```{r}
 rds <- file.path(assets_dir, "cache", paste0("0", analysis_no), "gene_anno.rds")
 if (file.exists(rds)) {
   gene_anno <- readRDS(rds)
 } else {
-  mart <- useEnsembl(
-    biomart = "ensembl", dataset = "hsapiens_gene_ensembl", host = "http://useast.ensembl.org/"
-  )
+  mart <- useEnsembl(biomart = "ensembl", dataset = "hsapiens_gene_ensembl")
   attributes <- c("affy_hg_u133_plus_2", "external_gene_name", "chromosome_name")
   gene_anno <- getBM(
     attributes = attributes, filters = "affy_hg_u133_plus_2",
@@ -200,6 +186,12 @@ if (file.exists(rds)) {
   )
   saveRDS(gene_anno, rds)
 }
+
+hist_res <- hist(
+  rowMedians(exprs(data)), 100, col = "cornsilk",
+  freq = FALSE, main = "Histogram of Median Intensities", border = "antiquewhite4",
+  xlab = "Median intensities"
+)
 
 chromosomes <- c(1:22, "MT")
 gene_anno <- gene_anno[which(gene_anno$chromosome_name %in% chromosomes), ]
@@ -212,6 +204,16 @@ rownames(data) <- fData(data)$external_gene_name
 
 normal <- data[ , grep("histopathologically", data$Characteristics..clinical.information.)]
 NFT <- data[ , grep("neurofibrillary", data$Characteristics..clinical.information.)]
+conditions <- c("Normal", "NFT")
+comb_mat <- cbind(exprs(normal), exprs(NFT))
+rownames(comb_mat) <- fData(data)$external_gene_name
+groups <- factor(rep(rev(conditions), c(dim(normal)[2], dim(NFT)[2])))
+levels(groups) <- conditions
+batch <- factor(
+  rep(data$Characteristics.individual.[!duplicated(data$Characteristics.individual.)], 2)
+)
+names(color_legend) <- conditions
+sample_color_map <- color_legend[groups]
 ```
 
 # DEGs
@@ -219,39 +221,20 @@ NFT <- data[ , grep("neurofibrillary", data$Characteristics..clinical.informatio
 We calculate DEGs (differentially expressed genes).
 
 ```{r, DEG}
-# This needs to be edited per comparison.
-conditions <- c("Normal", "NFT")
-comb_mat <- cbind(exprs(normal), exprs(NFT))
-rownames(comb_mat) <- fData(data)$external_gene_name
-comb_mat <- comb_mat[!is.na(rownames(comb_mat)), ]
-comb_mat <- comb_mat[!duplicated(rownames(comb_mat)), ]
-groups <- factor(rep(c(0, 1), c(dim(normal)[2], dim(NFT)[2])))
-batch <- c(rep(data$Characteristics.individual.[!duplicated(data$Characteristics.individual.)], 2))
+fit <- eBayes(lmFit(comb_mat, model.matrix(~ groups)))
+DE_fit <- topTable(
+  fit, coef = paste0("groups", conditions[2]), number = Inf, p.value = 0.05, adjust.method = "holm"
+)
+DE_cutoff <- comb_mat[rownames(DE_fit), ]
 
-# Set up for `limma` and `heatmap`.
-levels(groups) <- conditions
-design <- model.matrix(~ groups)
-colnames(design) <- conditions
-names(color_legend) <- conditions
-sample_color_map <- color_legend[groups]
-
-# Fit the linear model and return the top 25 DEGs.
-fit <- lmFit(comb_mat, design)
-fit <- eBayes(fit)
-DE_fit <- topTable(fit, coef = conditions[2], number = Inf, adjust.method = "holm", p.value = 0.05)
-
-# Filter DEGs from the dataset containing our phenotypes of interest.
-DE_genes <- comb_mat[rownames(DE_fit), ]
-
-# Make the heatmap.
-names(sample_color_map) <- colnames(DE_genes)
+names(sample_color_map) <- colnames(DE_cutoff)
 gene_set_clustering <- hclust(
-  as.dist(1 - cor(t(DE_genes), method = "pearson")), method = "complete"
+  as.dist(1 - cor(t(DE_cutoff), method = "pearson")), method = "complete"
 )
 heatmap(
-  as.matrix(DE_genes), ColSideColors = sample_color_map,
+  as.matrix(DE_cutoff), ColSideColors = sample_color_map,
   xlab = paste0(conditions[2], " vs. ", conditions[1]), margins = c(2, 20),
-  col = color, labRow = rownames(DE_genes),
+  col = color, labRow = rownames(DE_cutoff),
   labCol = " ", Rowv = as.dendrogram(gene_set_clustering),
   Colv = NA
 )
@@ -274,15 +257,50 @@ ggplot(gg_df, aes(PC1, PC2)) +
 ## NFT Upregulated
 
 ```{r, NFT-up}
-up <- DE_genes[which(DE_fit$logFC > 0), ]
+up <- DE_cutoff[which(DE_fit$logFC > 0), ]
 datatable_custom(up)
 ```
 
 ## NFT Downregulated
 
 ```{r, NFT-down}
-up <- DE_genes[which(DE_fit$logFC < 0), ]
+up <- DE_cutoff[which(DE_fit$logFC < 0), ]
 datatable_custom(up)
+```
+
+# GSVA
+
+```{r, gsva}
+gene_sets <- getGmt(file.path(assets_dir, "..", "gene-sets", paste0("c5.bp.v7.0.symbols", ".gmt")))
+
+rds <- file.path(
+  assets_dir, "cache", paste0("0", analysis_no), paste0("c5.bp.v7.0.symbols", ".rds")
+)
+if (file.exists(rds)) {
+  gsva <- readRDS(rds)
+} else {
+  gsva <- gsva(comb_mat, gene_sets, min.sz = 10, max.sz = 500)
+  saveRDS(gsva, rds)
+}
+
+fit <- eBayes(lmFit(gsva, model.matrix(~ groups)))
+DE_fit <- topTable(
+  fit, coef = paste0("groups", conditions[2]), number = Inf, p.value = 0.05, adjust.method = "holm"
+)
+DE_cutoff <- gsva[rownames(DE_fit), ]
+
+names(sample_color_map) <- colnames(DE_cutoff)
+gene_set_clustering <- hclust(
+  as.dist(1 - cor(t(DE_cutoff), method = "pearson")), method = "complete"
+)
+heatmap(
+  DE_cutoff, ColSideColors = sample_color_map,
+  xlab = data_name, margins = c(2, 50),
+  col = color, ylab = "c5.bp.v7.0.symbols",
+  labRow = toupper(gsub("^GO_|^REACTOME_", "", rownames(DE_cutoff))), labCol = " ",
+  Rowv = as.dendrogram(gene_set_clustering), Colv = NA
+)
+legend("topleft", names(color_legend), fill = color_legend, inset = 0.01, bg = "white")
 ```
 
 # References
