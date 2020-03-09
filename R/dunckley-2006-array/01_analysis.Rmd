@@ -76,6 +76,7 @@ conflict_prefer("filter", "dplyr")
 analysis_no <- 1
 color <- colorRampPalette(rev(brewer.pal(n = 7, name = "RdBu")))(100)
 color_legend <- c("lightgray", "darkgray")
+margins <- c(2, 50)
 
 # Everything else in this chunk remains generally unchanged.
 # ----------------------------------------------------------
@@ -210,7 +211,11 @@ rownames(comb_mat) <- fData(data)$external_gene_name
 groups <- factor(rep(rev(conditions), c(dim(normal)[2], dim(NFT)[2])))
 levels(groups) <- conditions
 batch <- factor(
-  rep(data$Characteristics.individual.[!duplicated(data$Characteristics.individual.)], 2)
+  gsub(
+    rep(data$Characteristics.individual.[!duplicated(data$Characteristics.individual.)], 2),
+    pattern = " |-",
+    replacement = "_"
+  )
 )
 names(color_legend) <- conditions
 sample_color_map <- color_legend[groups]
@@ -221,10 +226,14 @@ sample_color_map <- color_legend[groups]
 We calculate DEGs (differentially expressed genes).
 
 ```{r, DEG}
+# design <- model.matrix(~ 0 + groups + batch)
+# fit <- lmFit(comb_mat, design)
+# cont_mat <- makeContrasts(NFTvsNormal = groupsNFT - groupsNormal, levels = (colnames(design)))
+# fit <- eBayes(contrasts.fit(fit, cont_mat))
+# DE_fit <- topTable(fit, coef = "NFTvsNormal", number = Inf, p.value = 0.05)
+
 fit <- eBayes(lmFit(comb_mat, model.matrix(~ groups)))
-DE_fit <- topTable(
-  fit, coef = paste0("groups", conditions[2]), number = Inf, p.value = 0.05, adjust.method = "holm"
-)
+DE_fit <- topTable(fit, coef = paste0("groups", conditions[2]), number = Inf, p.value = 0.05)
 DE_cutoff <- comb_mat[rownames(DE_fit), ]
 
 names(sample_color_map) <- colnames(DE_cutoff)
@@ -271,34 +280,115 @@ datatable_custom(up)
 # GSVA
 
 ```{r, gsva}
-gene_sets <- getGmt(file.path(assets_dir, "..", "gene-sets", paste0("c5.bp.v7.0.symbols", ".gmt")))
+save_name <- "NFT_vs_Normal"
+gene_set_list <- c("c5.bp.v7.0.symbols", "AD_GO_names")
 
-rds <- file.path(
-  assets_dir, "cache", paste0("0", analysis_no), paste0("c5.bp.v7.0.symbols", ".rds")
-)
-if (file.exists(rds)) {
-  gsva <- readRDS(rds)
-} else {
-  gsva <- gsva(comb_mat, gene_sets, min.sz = 10, max.sz = 500)
-  saveRDS(gsva, rds)
+for (i in 1:length(gene_set_list)) {
+  # The gene set to be used.
+  gene_sets <- getGmt(file.path(assets_dir, "..", "gene-sets", paste0(gene_set_list[i], ".gmt")))
+  gene_sets
+
+  # Run GSVA and cache the results.
+  rds <- file.path(
+    assets_dir, "cache", paste0("0", analysis_no), paste0(save_name, "_", gene_set_list[i], ".rds")
+  )
+  if (file.exists(rds)) {
+    gsva <- readRDS(rds)
+  } else {
+    gsva <- gsva(comb_mat, gene_sets, min.sz = 10, max.sz = 500)
+    saveRDS(gsva, rds)
+  }
+
+  # Fit another linear model, this time performing differential pathway analysis on GSVA output.
+  fit <- eBayes(lmFit(gsva, model.matrix(~ groups)))
+  DE_gene_sets <- topTable(
+    fit, coef = paste0("groups", conditions[2]), number = 25, p.value = 0.05
+  )
+
+  gsva_cutoff <- gsva[rownames(DE_gene_sets), ]
+  names(sample_color_map) <- colnames(gsva_cutoff)
+  gene_set_clustering <- hclust(
+    as.dist(1 - cor(t(gsva_cutoff), method = "pearson")), method = "complete"
+  )
+  heatmap(
+    gsva_cutoff, ColSideColors = sample_color_map,
+    xlab = data_name, margins = margins,
+    col = color, ylab = gene_set_list[i],
+    labRow = toupper(gsub("^GO_|^REACTOME_", "", rownames(gsva_cutoff))), labCol = " ",
+    Rowv = as.dendrogram(gene_set_clustering), Colv = NA
+  )
+  legend("topleft", names(color_legend), fill = color_legend, inset = 0.01, bg = "white")
 }
+```
 
-fit <- eBayes(lmFit(gsva, model.matrix(~ groups)))
-DE_fit <- topTable(
-  fit, coef = paste0("groups", conditions[2]), number = Inf, p.value = 0.05, adjust.method = "holm"
+We revisit the GO Biological Process GSVA results and retrieve terms also appearing in the AD GO terms list.
+
+```{r, AD-GO-BP}
+gsva <- readRDS(
+  file.path(
+    assets_dir, "cache",
+    paste0("0", analysis_no), paste0(save_name, "_", gene_set_list[1], ".rds")
+  )
 )
-DE_cutoff <- gsva[rownames(DE_fit), ]
+fit <- eBayes(lmFit(gsva, model.matrix(~ groups)))
+DE_gene_sets <- topTable(fit, coef = paste0("groups", conditions[2]), number = 25, p.value = 0.05)
+gsva_cutoff <- gsva[rownames(DE_gene_sets), ]
+rownames(gsva_cutoff) <- gsub("^GO_", "", rownames(gsva_cutoff))
 
-names(sample_color_map) <- colnames(DE_cutoff)
+gene_sets <- getGmt(file.path(assets_dir, "..", "gene-sets", paste0(gene_set_list[2], ".gmt")))
+AD_GO_names <- lapply(names(gene_sets), function(x) { toupper(x) } )
+AD_GO_names <- unlist(AD_GO_names)
+AD_GO_names <- gsub("-", "_", AD_GO_names)
+
+gsva_cutoff <- gsva_cutoff[(rownames(gsva_cutoff) %in% AD_GO_names), ]
+names(sample_color_map) <- colnames(gsva_cutoff)
 gene_set_clustering <- hclust(
-  as.dist(1 - cor(t(DE_cutoff), method = "pearson")), method = "complete"
+  as.dist(1 - cor(t(gsva_cutoff), method = "pearson")), method = "complete"
 )
 heatmap(
-  DE_cutoff, ColSideColors = sample_color_map,
-  xlab = data_name, margins = c(2, 50),
-  col = color, ylab = "c5.bp.v7.0.symbols",
-  labRow = toupper(gsub("^GO_|^REACTOME_", "", rownames(DE_cutoff))), labCol = " ",
+  gsva_cutoff, ColSideColors = sample_color_map, xlab = data_name, margins = margins,
+  col = color, ylab = "AD Relevant GO BP", labRow = rownames(gsva_cutoff), labCol = " ",
   Rowv = as.dendrogram(gene_set_clustering), Colv = NA
+)
+legend("topleft", names(color_legend), fill = color_legend, inset = 0.01, bg = "white")
+```
+
+Finally, we use a GO slim to group together hierarchically similar GO terms.
+
+```{r, slim}
+# Convert GO names to IDs.
+GO_terms <- Term(GOTERM)
+GO_terms <- toupper(GO_terms)
+GO_terms <- gsub(" ", "_", GO_terms)
+GO_terms <- gsub("-", "_", GO_terms)
+gsva_cutoff <- gsva_cutoff[which(rownames(gsva_cutoff) %in% GO_terms), ]
+GO_terms <- GO_terms[which(GO_terms %in% rownames(gsva_cutoff))]
+GO_terms <- GO_terms[match(rownames(gsva_cutoff), GO_terms)]
+rownames(gsva_cutoff) <- names(GO_terms)
+
+# Summarize terms by their GO slim.
+go_collection <- GOCollection(rownames(gsva_cutoff))
+slim_obo <- getOBOCollection("http://data.pantherdb.org/PANTHER14.1/ontology/PANTHERGOslim.obo")
+slim <- goSlim(go_collection, slimCollection = slim_obo, ontology = "BP")
+slim <- slim[slim$Count > 0, ]
+datatable_custom(slim)
+```
+
+## Conserved Pathways
+
+While the largest GSVA object is loaded, we also use the IQR to look at pathways conserved and not differentially enriched between cells.
+
+```{r, conserved}
+gsva_cutoff <- gsva[order(rowIQRs(gsva)), ]
+
+gsva_cutoff <- gsva_cutoff[1:25, ]
+names(sample_color_map) <- colnames(gsva_cutoff)
+heatmap(
+  gsva_cutoff, ColSideColors = sample_color_map,
+  xlab = data_name, margins = margins,
+  col = color, ylab = gene_set_list[1],
+  labRow = toupper(gsub("^GO_|^REACTOME_", "", rownames(gsva_cutoff))), labCol = " ",
+  Rowv = NA, Colv = NA
 )
 legend("topleft", names(color_legend), fill = color_legend, inset = 0.01, bg = "white")
 ```
