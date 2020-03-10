@@ -69,6 +69,14 @@ Source: CRAN
 Version: 1.1.0
 Hash: d1075050684753e939c45775617c8f38
 
+Package: DESeq2
+Source: Bioconductor
+Version: 1.26.0
+Hash: a55d8f0834a0525e4ac5a10a64b71185
+Requires: Biobase, BiocGenerics, BiocParallel, GenomicRanges, Hmisc,
+    IRanges, Rcpp, RcppArmadillo, S4Vectors, SummarizedExperiment,
+    genefilter, geneplotter, ggplot2, locfit
+
 Package: DO.db
 Source: Bioconductor
 Version: 2.9
@@ -782,6 +790,11 @@ Package: limma
 Source: Bioconductor
 Version: 3.42.2
 Hash: 62718989f5af61f33c1f99e4a8b5a3df
+
+Package: locfit
+Source: CRAN
+Version: 1.5-9.1
+Hash: f8adf87b055dff233b7c3f5b4a174554
 
 Package: maEndToEnd
 Source: Bioconductor
