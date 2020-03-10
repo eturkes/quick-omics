@@ -97,8 +97,9 @@ knitr::opts_chunk$set(fig.width = 10, fig.height = 10)
 # Cell-type/Genotype Interaction Analysis
 
 This analysis looks for interactions between genotype (APOE3 vs. APOE4) and cell-type (neurons vs. astrocytes).
-Positive `log2FoldChange` values indicate upregulation in neurons while negative values indicate downregulation, compared to astrocytes.
 The most relevant tables will be the last two, the first two just looks at cell-type differences in APOE3 and APOE4 alone.
+In the first two tables, positive `log2FoldChange` values indicate upregulation in neurons while negative values indicate downregulation, compared to astrocytes.
+In the last two tables, positive `log2FoldChange` values indicate upregulation in APOE4 neurons while negative values indicate downregulation, compared to all other combinations of cell-type/genotype groups.
 All adjusted p-value cutoffs are set at $0.05$, except the last table.
 
 ```{r, prep}
