@@ -1,0 +1,202 @@
+---
+title:
+  '01 Analysis - `r unlist(strsplit(getwd(), "/"))[length(unlist(strsplit(getwd(), "/"))) - 2]`'
+author:
+  - name: "Emir Turkes [emir.turkes@eturkes.com]"
+  - name: "UK Dementia Research Institute at UCL"
+date: '`r strftime(Sys.time(), format = "%B %d, %Y")`'
+link-citations: true
+output:
+  html_document:
+    code_folding: hide
+    number_sections: true
+    theme: lumen
+    highlight: haddock
+    toc: true
+    toc_depth: 2
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(
+    inputFile,
+    encoding = encoding,
+    output_file = file.path(
+      "..", "..", "results",
+      unlist(strsplit(getwd(), "/"))[length(unlist(strsplit(getwd(), "/")))], "01-analysis.html"
+    )
+  )})
+---
+
+<style type="text/css">
+body {font-size: 16px;}
+h1.title {font-size: 35px;}
+h1 {font-size: 24px;}
+h2 {font-size: 22px;}
+h3 {font-size: 20px;}
+.toc-content {padding-left: 0px; padding-right: 0px;}
+div.tocify {width: 100%;}
+.tocify-subheader .tocify-item {font-size: 0.95em; padding-left: 25px; text-indent: 0;}
+div.main-container {max-width: none; width: 100%;}
+</style>
+
+*This file is a part of [Quick Omics](https://github.com/eturkes/quick-omics).*
+
+The data here is derived from @`r unlist(strsplit(getwd(), "/"))[length(unlist(strsplit(getwd(), "/")))]` and will be referenced using the name ``r unlist(strsplit(getwd(), "/"))[length(unlist(strsplit(getwd(), "/")))]``.
+
+```{r, boilerplate}
+# Load in necessary boilerplate and libraries.
+# --------------------------------------------
+
+# Copyright 2020 Emir Turkes
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# These should be checked per document.
+# -------------------------------------
+
+packages <- c("conflicted", "DESeq2", "DT")
+invisible(suppressPackageStartupMessages(lapply(packages, library, character.only = TRUE)))
+source(file.path(getwd(), "..", "utils.R"))
+
+analysis_no <- 1
+
+# Everything else in this chunk remains generally unchanged.
+# ----------------------------------------------------------
+
+data_name <- unlist(strsplit(getwd(), "/"))[length(unlist(strsplit(getwd(), "/")))] # Name of data.
+assets_dir <- normalizePath(file.path(getwd(), "..", "..", "assets", data_name)) # Caches and data.
+tmp_dir <- normalizePath(file.path(getwd(), "..", "..", "tmp", data_name))
+results_dir <- normalizePath(file.path(getwd(), "..", "..", "results", data_name))
+
+if (!dir.exists(tmp_dir)) {
+  dir.create(tmp_dir, recursive = TRUE)
+}
+
+# Unique cache directory for each analysis number.
+if (!dir.exists(normalizePath(file.path(assets_dir, "cache", paste0("0", analysis_no))))) {
+  dir.create(
+    normalizePath(file.path(assets_dir, "cache", paste0("0", analysis_no))), recursive = TRUE
+  )
+}
+
+options(stringsAsFactors = FALSE)
+knitr::opts_chunk$set(fig.width = 10, fig.height = 10)
+```
+
+# Genotype/Region Interaction Analysis
+
+This analysis looks for interactions between region (entorhinal cortex or EC vs. primary visual cortex or PVC) and genotype (APOE3 vs. APOE4).
+The first two tables looks at genotype differences in each region separately, while the last contains the interaction analysis.
+In the first two tables, positive `log2FoldChange` values indicate upregulation in APOE4 while negative values indicate downregulation, compared to APOE3.
+In the last two tables, positive `log2FoldChange` values indicate upregulation in APOE4 EC while negative values indicate downregulation, compared to all other combinations of region/genotype groups.
+All adjusted p-value cutoffs are set at $0.05$, except the last table.
+
+```{r, prep}
+ec <- read.csv(file.path(assets_dir, "ec_complete.csv"))
+rownames(ec) <- ec[ , 1]
+ec <- ec[ , -1]
+ec_meta <- read.csv(file.path(assets_dir, "ec_meta.csv"))
+
+pvc <- read.csv(file.path(assets_dir, "pvc_complete.csv"))
+pvc <- pvc[ , -1]
+pvc_meta <- read.csv(file.path(assets_dir, "pvc_meta.csv"))
+
+data <- cbind(ec, pvc)
+rm(ec, pvc)
+
+ec_meta$Sample <- gsub(" ", "", ec_meta$Sample)
+ec_meta <- ec_meta[ec_meta$Sample %in% colnames(data), ]
+pvc_meta$Sample <- gsub(" ", "", pvc_meta$Sample)
+pvc_meta <- pvc_meta[pvc_meta$Sample %in% colnames(data), ]
+coldata <- rbind(ec_meta, pvc_meta)
+coldata <- data.frame(
+  coldata, region = factor(gsub("[[:digit:]]+", "", coldata$Sample)),
+  genotype = factor(gsub("/", ".", coldata$Genotype))
+)
+levels(coldata$region) <- c("PVC", "EC")
+
+dds <- DESeqDataSetFromMatrix(
+  data, colData = coldata, design = ~ region + genotype + region:genotype
+)
+rm(data)
+colnames(dds) <- paste0(coldata$region, "-", coldata$genotype)
+dds <- DESeq(dds, quiet = TRUE)
+```
+
+## APOE4 Upregulation in PVC
+
+```{r, PVC}
+genotype_PVC <- results(
+  dds,
+  contrast = c(
+    unlist(strsplit(resultsNames(dds)[3], "_"))[1],
+    unlist(strsplit(resultsNames(dds)[3], "_"))[2],
+    unlist(strsplit(resultsNames(dds)[3], "_"))[4]
+  )
+)
+res <- genotype_PVC
+genotype_PVC <- genotype_PVC[which(genotype_PVC$padj < 0.05), ]
+genotype_PVC <- genotype_PVC[order(genotype_PVC$padj), ]
+datatable_custom(data.frame(genotype_PVC))
+
+ix <- which.min(res$padj)
+res <- res[order(res$padj), ]
+barplot(assay(dds)[ix, ], las = 2, main = rownames(dds)[ix])
+```
+
+## APOE4 Upregulation in EC
+
+```{r, EC}
+genotype_EC <- results(dds, contrast = list(c(resultsNames(dds)[3], resultsNames(dds)[4])))
+res <- genotype_EC
+genotype_EC <- genotype_EC[which(genotype_EC$padj < 0.05), ]
+genotype_EC <- genotype_EC[order(genotype_EC$padj), ]
+datatable_custom(data.frame(genotype_EC))
+
+ix <- which.min(res$padj)
+res <- res[order(res$padj), ]
+barplot(assay(dds)[ix, ], las = 2, main = rownames(dds)[ix])
+```
+
+## Region/Genotype Interaction
+
+```{r, interaction}
+interaction <- results(dds, name = resultsNames(dds)[4])
+interaction <- interaction[which(interaction$padj < 0.05), ]
+interaction <- interaction[order(interaction$padj), ]
+datatable_custom(data.frame(interaction))
+```
+
+## Region/Genotype Interaction (No Cutoff)
+
+This table has no adjusted p-value cutoff applied.
+
+```{r, interaction-nocutoff}
+interaction <- results(dds, name = resultsNames(dds)[4])
+res <- interaction
+interaction <- interaction[order(interaction$padj), ]
+datatable_custom(data.frame(interaction))
+
+ix <- which.min(res$padj)
+res <- res[order(res$padj), ]
+barplot(assay(dds)[ix, ], las = 2, main = rownames(dds)[ix])
+```
+
+# References
+
+This is the concluding section of the document. Here we output the `sessionInfo` and create a bibliography for works cited.
+
+```{r, references}
+sessionInfo()
+```
