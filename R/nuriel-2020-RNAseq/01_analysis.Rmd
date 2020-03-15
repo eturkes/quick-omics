@@ -103,34 +103,38 @@ In the last two tables, positive `log2FoldChange` values indicate upregulation i
 All adjusted p-value cutoffs are set at $0.05$, except the last table.
 
 ```{r, prep}
+pvc <- read.csv(file.path(assets_dir, "pvc_complete.csv"))
+pvc <- pvc[ , -1]
+pvc_meta <- read.csv(file.path(assets_dir, "pvc_meta.csv"))
+
 ec <- read.csv(file.path(assets_dir, "ec_complete.csv"))
 rownames(ec) <- ec[ , 1]
 ec <- ec[ , -1]
 ec_meta <- read.csv(file.path(assets_dir, "ec_meta.csv"))
 
-pvc <- read.csv(file.path(assets_dir, "pvc_complete.csv"))
-pvc <- pvc[ , -1]
-pvc_meta <- read.csv(file.path(assets_dir, "pvc_meta.csv"))
+data <- cbind(pvc, ec)
+rm(pvc, ec)
 
-data <- cbind(ec, pvc)
-rm(ec, pvc)
-
-ec_meta$Sample <- gsub(" ", "", ec_meta$Sample)
-ec_meta <- ec_meta[ec_meta$Sample %in% colnames(data), ]
 pvc_meta$Sample <- gsub(" ", "", pvc_meta$Sample)
 pvc_meta <- pvc_meta[pvc_meta$Sample %in% colnames(data), ]
-coldata <- rbind(ec_meta, pvc_meta)
+ec_meta$Sample <- gsub(" ", "", ec_meta$Sample)
+ec_meta <- ec_meta[ec_meta$Sample %in% colnames(data), ]
+coldata <- rbind(pvc_meta, ec_meta)
+rownames(coldata) <- coldata$Sample
 coldata <- data.frame(
-  coldata, region = factor(gsub("[[:digit:]]+", "", coldata$Sample)),
+  coldata,
+  region = factor(gsub("[[:digit:]]+", "", coldata$Sample), levels = c("PVC", "EC")),
   genotype = factor(gsub("/", ".", coldata$Genotype))
 )
-levels(coldata$region) <- c("PVC", "EC")
+coldata$comb_design <- paste0(coldata$region, "-", coldata$genotype)
+data <- data[order(coldata$comb_design, decreasing = TRUE)]
+coldata <- coldata[order(coldata$comb_design, decreasing = TRUE), ]
 
 dds <- DESeqDataSetFromMatrix(
   data, colData = coldata, design = ~ region + genotype + region:genotype
 )
 rm(data)
-colnames(dds) <- paste0(coldata$region, "-", coldata$genotype)
+colnames(dds) <- dds$comb_design
 dds <- DESeq(dds, quiet = TRUE)
 ```
 
@@ -180,12 +184,12 @@ datatable_custom(data.frame(results))
 
 ## Region/Genotype Interaction (No Cutoff)
 
-This table has no adjusted p-value cutoff applied.
+This table has no adjusted p-value cutoff applied, but we only look at the top 5 to save space.
 
 ```{r, interaction-nocutoff}
 results <- results(dds, name = resultsNames(dds)[4])
 results <- results[order(results$padj), ]
-datatable_custom(data.frame(results))
+datatable_custom(head(data.frame(results)))
 
 n_plots <- 4
 for (i in 1:n_plots) {
