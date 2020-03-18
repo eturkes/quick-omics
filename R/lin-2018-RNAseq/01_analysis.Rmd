@@ -22,8 +22,13 @@ knit: (function(inputFile, encoding) {
     inputFile,
     encoding = encoding,
     output_file = file.path(
-      "..", "..", "results",
-      unlist(strsplit(getwd(), "/"))[length(unlist(strsplit(getwd(), "/")))], "01-analysis.html"
+      "..",
+      "..",
+      "results",
+      unlist(strsplit(getwd(), "/"))[length(unlist(strsplit(getwd(), "/")))],
+      paste0(
+        unlist(strsplit(getwd(), "/"))[length(unlist(strsplit(getwd(), "/")))], "-01-analysis.html"
+      )
     )
   )})
 ---
