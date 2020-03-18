@@ -200,15 +200,13 @@ for (i in 1:n_plots) {
 # EC Alone
 
 ```{r, EC-alone-prep}
-ec <- read.csv(file.path(assets_dir, "ec_complete.csv"))
-rownames(ec) <- ec[ , 1]
-ec <- ec[ , -1]
-data <- ec
-ec_meta <- read.csv(file.path(assets_dir, "ec_meta.csv"))
+data <- read.csv(file.path(assets_dir, "ec_complete.csv"))
+rownames(data) <- data[ , 1]
+data <- data[ , -1]
+coldata <- read.csv(file.path(assets_dir, "ec_meta.csv"))
 
-ec_meta$Sample <- gsub(" ", "", ec_meta$Sample)
-ec_meta <- ec_meta[ec_meta$Sample %in% colnames(data), ]
-coldata <- ec_meta
+coldata$Sample <- gsub(" ", "", coldata$Sample)
+coldata <- coldata[coldata$Sample %in% colnames(data), ]
 rownames(coldata) <- coldata$Sample
 coldata <- data.frame(
   coldata,
@@ -226,7 +224,7 @@ dds <- DESeq(dds, quiet = TRUE)
 
 ## APOE4 Upregulation
 
-```{r, EC-alone}
+```{r, EC-APOE4-up}
 results <- results(dds, name = resultsNames(dds)[4])
 results <- results[which(results$padj < 0.05), ]
 results <- results[order(results$padj), ]
@@ -236,6 +234,14 @@ n_plots <- 4
 for (i in 1:n_plots) {
   barplot(assay(dds)[rownames(results)[i], ], las = 2, main = rownames(results)[i])
 }
+```
+
+## APOE4 Upregulation (No Cutoff)
+
+```{r, EC-APOE4-up-nocutoff}
+results <- results(dds, name = resultsNames(dds)[4])
+results <- results[order(results$padj), ]
+datatable_custom(data.frame(results))
 ```
 
 # References

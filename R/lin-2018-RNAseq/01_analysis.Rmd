@@ -122,7 +122,7 @@ dds <- DESeq(dds, quiet = TRUE)
 ## Cell-type Comparison in APOE3
 
 ```{r, APOE3}
-celltype_APOE3 <- results(
+results <- results(
   dds,
   contrast = c(
     unlist(strsplit(resultsNames(dds)[3], "_"))[1],
@@ -130,37 +130,72 @@ celltype_APOE3 <- results(
     unlist(strsplit(resultsNames(dds)[3], "_"))[4]
   )
 )
-celltype_APOE3 <- celltype_APOE3[which(celltype_APOE3$padj < 0.05), ]
-celltype_APOE3 <- celltype_APOE3[order(celltype_APOE3$padj), ]
-datatable_custom(data.frame(celltype_APOE3))
+results <- results[which(results$padj < 0.05), ]
+results <- results[order(results$padj), ]
+datatable_custom(data.frame(results))
+
+n_plots <- 4
+for (i in 1:n_plots) {
+  barplot(assay(dds)[rownames(results)[i], ], las = 2, main = rownames(results)[i])
+}
 ```
 
 ## Cell-type Comparison in APOE4
 
 ```{r, APOE4}
-celltype_APOE4 <- results(dds, contrast = list(c(resultsNames(dds)[3], resultsNames(dds)[4])))
-celltype_APOE4 <- celltype_APOE4[which(celltype_APOE4$padj < 0.05), ]
-celltype_APOE4 <- celltype_APOE4[order(celltype_APOE4$padj), ]
-datatable_custom(data.frame(celltype_APOE4))
+results <- results(dds, contrast = list(c(resultsNames(dds)[3], resultsNames(dds)[4])))
+results <- results[which(results$padj < 0.05), ]
+results <- results[order(results$padj), ]
+datatable_custom(data.frame(results))
+
+n_plots <- 4
+for (i in 1:n_plots) {
+  barplot(assay(dds)[rownames(results)[i], ], las = 2, main = rownames(results)[i])
+}
 ```
 
 ## Cell-type/Genotype Interaction
 
 ```{r, interaction}
-interaction <- results(dds, name = resultsNames(dds)[4])
-interaction <- interaction[which(interaction$padj < 0.05), ]
-interaction <- interaction[order(interaction$padj), ]
-datatable_custom(data.frame(interaction))
+results <- results(dds, name = resultsNames(dds)[4])
+results <- results[which(results$padj < 0.05), ]
+results <- results[order(results$padj), ]
+datatable_custom(data.frame(results))
 ```
 
-## Cell-type/Genotype Interaction (No Cutoff)
+# Neurons Alone
 
-This table has no adjusted p-value cutoff applied.
+```{r, neuron-prep}
+data <- read.csv(file.path(assets_dir, "GSE102956_COUNTS_NEU.txt"), sep = "\t")
+coldata <- data.frame(
+  batch = factor(rep(seq(0, length(colnames(data)) / 4), each = 3)),
+  genotype = factor(rep(c(rep("APOE3", 3), rep("APOE4", 3)), length(colnames(data)) / 6))
+)
+dds <- DESeqDataSetFromMatrix(data, colData = coldata, design = ~ genotype)
+rm(data)
+dds <- DESeq(dds, quiet = TRUE)
+```
 
-```{r, interaction-nocutoff}
-interaction <- results(dds, name = resultsNames(dds)[4])
-interaction <- interaction[order(interaction$padj), ]
-datatable_custom(data.frame(interaction))
+## Upregulation in APOE4
+
+```{r, neuron-APOE4-up}
+results <- results(dds, name = resultsNames(dds)[2])
+results <- results[which(results$padj < 0.05), ]
+results <- results[order(results$padj), ]
+datatable_custom(data.frame(results))
+
+n_plots <- 4
+for (i in 1:n_plots) {
+  barplot(assay(dds)[rownames(results)[i], ], las = 2, main = rownames(results)[i])
+}
+```
+
+## Upregulation in APOE4 (No Cutoff)
+
+```{r, neuron-APOE4-up-nocutoff}
+results <- results(dds, name = resultsNames(dds)[2])
+results <- results[order(results$padj), ]
+datatable_custom(data.frame(results))
 ```
 
 # References
