@@ -38,6 +38,9 @@ vignettes/*.pdf
 # R Environment Variables
 .Renviron
 
+# pkgdown site
+docs/
+
 # Things that should not be tracked by Git, so are instead stored in Google Drive
 /gdrive/
 
