@@ -47,3 +47,6 @@ docs/
 /tmp/
 packrat/lib*/
 packrat/src/
+
+# Directory for miscellaneous temporary files
+/scratch/
