@@ -152,7 +152,7 @@ sample_color_map <- color_legend[groups]
 
 # Fit the linear model and return the top 25 DEGs.
 fit <- lmFit(comb_mat, design)
-fit <- eBayes(fit)
+fit <- eBayes(fit, trend = TRUE)
 DE_genes <- topTable(fit, coef = conditions[2], number = 25, adjust.method = "holm", p.value = 0.05)
 
 # Filter DEGs from the dataset containing our phenotypes of interest.
@@ -216,7 +216,7 @@ sample_color_map <- color_legend[groups]
 
 # Fit the linear model and return the top 25 DEGs.
 fit <- lmFit(comb_mat, design)
-fit <- eBayes(fit)
+fit <- eBayes(fit, trend = TRUE)
 DE_genes <- topTable(fit, coef = conditions[2], number = 25, adjust.method = "holm", p.value = 0.05)
 
 # Filter DEGs from the dataset containing our phenotypes of interest.
@@ -280,7 +280,7 @@ sample_color_map <- color_legend[groups]
 
 # Fit the linear model and return the top 25 DEGs.
 fit <- lmFit(comb_mat, design)
-fit <- eBayes(fit)
+fit <- eBayes(fit, trend = TRUE)
 DE_genes <- topTable(fit, coef = conditions[2], number = 25, adjust.method = "holm", p.value = 0.05)
 
 # Filter DEGs from the dataset containing our phenotypes of interest.
