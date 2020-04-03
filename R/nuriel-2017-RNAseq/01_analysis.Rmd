@@ -105,21 +105,21 @@ data <- read.delim(
 data <- data[which(data$padj < 0.05), ]
 ```
 
-## AD Upregulated
+## APOE 4 Upregulated
 
 ```{r, AD-up}
 AD_up <- data[which(data$log2FoldChange > 0), ]
 AD_up <- AD_up[order(-AD_up$log2FoldChange), ]
-rownames(AD_up) <- NULL
+rownames(AD_up) <- AD_up$featureID
 datatable_custom(AD_up)
 ```
 
-## AD Downregulated
+## APOE 4 Downregulated
 
 ```{r, AD-down}
 AD_down <- data[which(data$log2FoldChange < 0), ]
 AD_down <- AD_down[order(AD_down$log2FoldChange), ]
-rownames(AD_down) <- NULL
+rownames(AD_down) <- AD_down$featureID
 datatable_custom(AD_down)
 ```
 
