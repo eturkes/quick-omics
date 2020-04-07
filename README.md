@@ -19,5 +19,5 @@ limitations under the License.
 
 Repo for quick exploratory analyses
 
-In order to reproduce the report, prerequisite data must be downloaded from my [Google Drive](https://drive.google.com/drive/folders/1FFPdDBOI8HOlI6Fp72Or8kWOgeflNc6l?usp=sharing).
+In order to reproduce the report, prerequisite data must be downloaded from my [Google Drive](https://drive.google.com/drive/folders/1aTXAW5h82eDq4ajO1RzA4cU25L9Pq_Az?usp=sharing)
 After downloading and unzipping, move the directory to the project root and rename it as `gdrive`.
