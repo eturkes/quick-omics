@@ -44,9 +44,8 @@ docs/
 # Things that should not be tracked by Git, so are instead stored in Google Drive
 /gdrive/
 
-/tmp/
-packrat/lib*/
-packrat/src/
-
 # Directory for miscellaneous temporary files
 /scratch/
+
+# Data that does not need to be backed up
+/tmp/
