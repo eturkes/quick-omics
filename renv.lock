@@ -136,6 +136,13 @@
       "Source": "Bioconductor",
       "Hash": "cdfd6bc4767e26ee94f80ff685160e8b"
     },
+    "FNN": {
+      "Package": "FNN",
+      "Version": "1.1.3",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "b56998fff55e4a4b4860ad6e8c67e0f9"
+    },
     "Formula": {
       "Package": "Formula",
       "Version": "1.2-3",
@@ -253,6 +260,13 @@
       "Repository": "CRAN",
       "Hash": "2e813101e637bfd423f763d20350ed3d"
     },
+    "RSpectra": {
+      "Package": "RSpectra",
+      "Version": "0.16-0",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "a41329d24d5a98eaed2bd0159adb1b5f"
+    },
     "Rcpp": {
       "Package": "Rcpp",
       "Version": "1.0.4.6",
@@ -287,6 +301,13 @@
       "Source": "Repository",
       "Repository": "CRAN",
       "Hash": "3224f3204b7a8be299b3f939c07025ad"
+    },
+    "RcppProgress": {
+      "Package": "RcppProgress",
+      "Version": "0.4.2",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "1c0aa18b97e6aaa17f93b8b866c0ace5"
     },
     "ReactomePA": {
       "Package": "ReactomePA",
@@ -893,6 +914,12 @@
       "Repository": "CRAN",
       "Hash": "3d59212f2814d65dff517e6899813c58"
     },
+    "hgu133plus2.db": {
+      "Package": "hgu133plus2.db",
+      "Version": "3.2.3",
+      "Source": "Bioconductor",
+      "Hash": "c6a13a0f666ab65996f909ee58baa491"
+    },
     "highr": {
       "Package": "highr",
       "Version": "0.8",
@@ -1172,6 +1199,12 @@
       "Version": "3.11.0",
       "Source": "Bioconductor",
       "Hash": "774f0a08b5356f2abaa9c7d8e17e351e"
+    },
+    "pd.hg.u133.plus.2": {
+      "Package": "pd.hg.u133.plus.2",
+      "Version": "3.12.0",
+      "Source": "Bioconductor",
+      "Hash": "848b0566554c7c4fff45d7ee4b6e75b4"
     },
     "pd.hugene.1.0.st.v1": {
       "Package": "pd.hugene.1.0.st.v1",
@@ -1591,6 +1624,13 @@
       "Source": "Repository",
       "Repository": "CRAN",
       "Hash": "4a5081acfb7b81a572e4384a7aaf2af1"
+    },
+    "uwot": {
+      "Package": "uwot",
+      "Version": "0.1.8",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "094c1c4b1dad5a5aa84adafe5cd6d076"
     },
     "vctrs": {
       "Package": "vctrs",
