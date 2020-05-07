@@ -64,7 +64,7 @@ The data here is derived from @`r unlist(strsplit(getwd(), "/"))[length(unlist(s
 
 # This section should be checked per document.
 # --------------------------------------------
-packages <- c("conflicted", "scater", "scran", "pheatmap", "viridis")
+packages <- c("conflicted", "scater", "plotly", "scran", "pheatmap", "viridis")
 invisible(suppressPackageStartupMessages(lapply(packages, library, character.only = TRUE)))
 # --------------------------------------------
 
@@ -105,12 +105,13 @@ genes <- data.frame(genes = colnames(mat))
 sce <- SingleCellExperiment(list(logcounts = mat), colData = genes)
 set.seed(1)
 sce <- runPCA(sce)
-plotPCA(sce, colour_by = "genes")
+ggplotly(plotPCA(sce, colour_by = "genes"))
 
 set.seed(1)
 kmeans <- kmeans(reducedDim(sce), 4)
 sce$clusters <- as.factor(kmeans$cluster)
-plotPCA(sce, colour_by = "clusters")
+sce$clusters
+ggplotly(plotPCA(sce, colour_by = "clusters"))
 
 markers <- findMarkers(
   sce, groups = sce$clusters, direction = "up", pval.type = "any", test.type = "wilcox"
@@ -132,7 +133,7 @@ AUCs <- getMarkerEffects(markers_sub, "AUC")
 pheatmap(AUCs, viridis(21), breaks = seq(0, 1, length.out = 21))
 
 markers_sub <- markers[[4]]
-markers_sub <- markers_sub[markers_sub$Top <= 5, ]
+markers_sub <- markers_sub[markers_sub$Top <= 10, ]
 AUCs <- getMarkerEffects(markers_sub, "AUC")
 pheatmap(AUCs, viridis(21), breaks = seq(0, 1, length.out = 21))
 ```
