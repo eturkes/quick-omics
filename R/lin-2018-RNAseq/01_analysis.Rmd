@@ -53,7 +53,7 @@ The data here is derived from @`r unlist(strsplit(getwd(), "/"))[length(unlist(s
 # Load in necessary boilerplate and libraries.
 # --------------------------------------------
 
-# Copyright 2020, 2022 Emir Turkes, UK DRI at UCL
+# Copyright 2020, 2022-2023 Emir Turkes, UK DRI at UCL
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
